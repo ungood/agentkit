@@ -1,5 +1,8 @@
 # Example: A project flake that consumes skills via devshell
 #
+# Skills follow the Agent Skills specification (https://agentskills.io/specification).
+# Each skill is a directory containing a SKILL.md file.
+#
 # This shows how a project would use agentkit to inject skills into
 # its development environment via OPENCODE_CONFIG_DIR.
 {
@@ -38,20 +41,9 @@
         opencode.enable = true;
       };
 
-      # You can also define project-local skills
+      # You can also define project-local skills (pointing to local directories)
       agentkit.skills.project-conventions = {
-        description = "This project's coding conventions and patterns";
-        content = ''
-          ## Project Structure
-          - Source code in `src/`
-          - Tests in `tests/`
-          - Nix expressions in `nix/`
-
-          ## Conventions
-          - Use conventional commits
-          - All PRs need at least one approval
-          - Tests must pass before merge
-        '';
+        directory = ./skills/project-conventions;
       };
 
       agentkit.commands.test = {

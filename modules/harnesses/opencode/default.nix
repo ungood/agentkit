@@ -4,9 +4,12 @@
 # configuration. Registers itself into the agentkit harness system so the
 # devshell aggregator can include its env vars.
 #
+# Skills follow the Agent Skills specification and are copied as directories.
+# Commands are rendered to markdown with frontmatter.
+#
 # Provides:
 #   - agentkit.opencode.enable              (top-level toggle)
-#   - agentkit.opencode.generatedSkills     (rendered SKILL.md content)
+#   - agentkit.opencode.skillDirs           (skill directory paths)
 #   - agentkit.opencode.generatedCommands   (rendered command.md content)
 #   - perSystem.agentkit.opencode.devshell  (devshell integration)
 {
@@ -33,19 +36,24 @@ let
     _: skill: skill.compatibility == [ ] || builtins.elem "opencode" skill.compatibility
   ) cfg.skills;
 
-  generatedSkills = mapAttrs (_: ocLib.renderSkill) compatibleSkills;
+  # Resolve skill directories (paths to Agent Skills-compliant directories)
+  skillDirs = mapAttrs (_: skill: skill.directory) compatibleSkills;
+
   generatedCommands = mapAttrs (_: ocLib.renderCommand) cfg.commands;
 in
 {
   options.agentkit.opencode = {
     enable = mkEnableOption "OpenCode harness";
 
-    generatedSkills = mkOption {
-      type = types.attrsOf types.str;
+    skillDirs = mkOption {
+      type = types.attrsOf types.path;
       internal = true;
       readOnly = true;
       default = { };
-      description = "Generated SKILL.md content for each skill, keyed by skill name.";
+      description = ''
+        Skill directory paths for each compatible skill, keyed by skill name.
+        Each path points to an Agent Skills-compliant directory containing SKILL.md.
+      '';
     };
 
     generatedCommands = mkOption {
@@ -59,7 +67,7 @@ in
 
   config = mkIf (cfg.enable && ocCfg.enable) {
     agentkit.opencode = {
-      inherit generatedSkills generatedCommands;
+      inherit skillDirs generatedCommands;
     };
   };
 
@@ -74,27 +82,22 @@ in
     let
       psCfg = config.agentkit.opencode.devshell;
 
-      # Individual skill and command files as store paths
-      skillFiles = mapAttrs (
-        name: content: pkgs.writeText "${name}-SKILL.md" content
-      ) ocCfg.generatedSkills;
-
       commandFiles = mapAttrs (
         name: content: pkgs.writeText "${name}-command.md" content
       ) ocCfg.generatedCommands;
 
       # Build a store path with the directory structure OpenCode expects:
-      #   skills/<name>/SKILL.md
+      #   skills/<name>/   (copied from Agent Skills directory)
       #   commands/<name>.md
       configDir = pkgs.runCommand "agentkit-opencode-config" { } (
         ''
           mkdir -p $out
         ''
         + lib.concatStringsSep "\n" (
-          lib.mapAttrsToList (name: file: ''
-            mkdir -p $out/skills/${name}
-            cp ${file} $out/skills/${name}/SKILL.md
-          '') skillFiles
+          lib.mapAttrsToList (name: dir: ''
+            mkdir -p $out/skills
+            cp -rL ${dir} $out/skills/${name}
+          '') ocCfg.skillDirs
         )
         + lib.concatStringsSep "\n" (
           lib.mapAttrsToList (name: file: ''
@@ -118,7 +121,7 @@ in
           default = configDir;
           description = ''
             A derivation containing the OpenCode config directory structure.
-            Contains skills/ and commands/ subdirectories with generated files.
+            Contains skills/ and commands/ subdirectories.
           '';
         };
 

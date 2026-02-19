@@ -4,6 +4,9 @@
 # a harness registry. Individual harnesses (opencode, claude-code, etc.) are
 # separate modules that consume these definitions and register themselves.
 #
+# Skills follow the Agent Skills specification (https://agentskills.io/specification).
+# Each skill is a directory containing a SKILL.md file with YAML frontmatter.
+#
 # Usage:
 #   imports = [ inputs.agentkit.flakeModules.default ];
 #
@@ -12,8 +15,7 @@
 #     opencode.enable = true;
 #
 #     skills.git-release = {
-#       description = "Create consistent releases and changelogs";
-#       content = "...";
+#       directory = ./skills/git-release;
 #     };
 #   };
 #
@@ -50,18 +52,17 @@ in
       description = ''
         Agent skills to export from this flake.
 
-        Skills are framework-agnostic instruction sets that agents can load
-        on demand. Each enabled harness (opencode, claude-code, etc.) converts
-        them into the framework's expected format.
+        Skills follow the Agent Skills specification. Each skill is a directory
+        containing a SKILL.md file with YAML frontmatter. Agentkit copies these
+        directories as-is into the framework's expected location — it does not
+        parse or regenerate the frontmatter.
+
+        Each enabled harness (opencode, claude-code, etc.) copies the skill
+        directories into the framework's expected configuration path.
       '';
       example = {
         git-release = {
-          description = "Create consistent releases and changelogs";
-          content = ''
-            ## What I do
-            - Draft release notes from merged PRs
-            - Propose a version bump
-          '';
+          directory = ./skills/git-release;
         };
       };
     };

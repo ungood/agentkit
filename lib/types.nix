@@ -3,15 +3,24 @@
 # Framework-agnostic types for agent platform extension points.
 # These are consumed by backend modules (opencode, etc.) to generate
 # framework-specific configuration.
+#
+# Skills follow the Agent Skills specification (https://agentskills.io/specification).
+# Each skill is a directory containing at minimum a SKILL.md file with YAML
+# frontmatter. Agentkit does not parse or rebuild the frontmatter — it treats
+# the directory as an opaque unit conforming to the spec.
 { lib }:
 let
   inherit (lib) mkOption types;
 in
 {
-  # A skill definition: reusable instructions that an agent can load on demand.
+  # A skill definition: a directory following the Agent Skills specification.
   #
-  # Skills are framework-agnostic at this layer. Backend modules (e.g., opencode)
-  # convert them into the framework's expected format (e.g., SKILL.md with YAML frontmatter).
+  # The directory must contain a SKILL.md file with valid YAML frontmatter
+  # (name, description, etc.) and may optionally include scripts/, references/,
+  # and assets/ subdirectories. See https://agentskills.io/specification.
+  #
+  # Agentkit simply copies the directory into the framework's expected location.
+  # It does not parse or regenerate the SKILL.md frontmatter.
   skill = types.submodule (
     { name, ... }:
     {
@@ -20,31 +29,22 @@ in
           type = types.str;
           default = name;
           description = ''
-            The skill name. Must be lowercase alphanumeric with single hyphen
-            separators (e.g., "git-release"). Defaults to the attribute name.
+            The skill name. Must match the `name` field in SKILL.md frontmatter
+            and follow Agent Skills naming rules: lowercase alphanumeric with
+            single hyphen separators (e.g., "git-release"). Defaults to the
+            attribute name.
           '';
         };
 
-        description = mkOption {
-          type = types.str;
+        directory = mkOption {
+          type = types.path;
           description = ''
-            A short description of what this skill does and when to use it.
-            Used by agents to decide whether to load the skill.
-          '';
-        };
+            Path to the skill directory. Must contain a SKILL.md file conforming
+            to the Agent Skills specification (https://agentskills.io/specification).
 
-        content = mkOption {
-          type = types.lines;
-          description = ''
-            The skill's instruction content (markdown). This is the body of the
-            skill that the agent receives when it loads the skill.
+            The directory may also include optional subdirectories such as
+            scripts/, references/, and assets/.
           '';
-        };
-
-        license = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "Optional SPDX license identifier.";
         };
 
         compatibility = mkOption {
@@ -53,21 +53,14 @@ in
           description = ''
             List of frameworks this skill is compatible with (e.g., ["opencode"]).
             Empty means compatible with all frameworks.
+
+            This is an agentkit-specific field for filtering skills by harness —
+            it is not part of the Agent Skills specification.
           '';
           example = [
             "opencode"
             "claude-code"
           ];
-        };
-
-        metadata = mkOption {
-          type = types.attrsOf types.str;
-          default = { };
-          description = "Arbitrary string-to-string metadata map.";
-          example = {
-            audience = "maintainers";
-            workflow = "github";
-          };
         };
       };
     }

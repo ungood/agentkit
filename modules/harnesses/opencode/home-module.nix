@@ -2,15 +2,18 @@
 #
 # A standalone home-manager module that can be imported into a home-manager
 # configuration. It provides an `agentkit.opencode` option that accepts
-# pre-rendered skills and commands (from the flake-parts module) and feeds
-# them into the upstream `programs.opencode` module.
+# skill directories and commands and feeds them into the upstream
+# `programs.opencode` module.
+#
+# Skills follow the Agent Skills specification — each value is a path to a
+# directory containing SKILL.md (and optional scripts/, references/, assets/).
 #
 # Usage in a home-manager config:
 #   imports = [ inputs.agentkit.homeModules.opencode ];
 #
 #   agentkit.opencode = {
 #     skills = {
-#       git-release = "---\nname: git-release\n...";
+#       git-release = ./skills/git-release;
 #     };
 #     commands = {
 #       release = "---\ndescription: ...\n...";
@@ -38,12 +41,12 @@ in
     enable = mkEnableOption "agentkit OpenCode integration";
 
     skills = mkOption {
-      type = types.attrsOf types.str;
+      type = types.attrsOf types.path;
       default = { };
       description = ''
-        Pre-rendered skill content, keyed by skill name.
-        Each value is the full SKILL.md content (including frontmatter).
-        These are merged into programs.opencode.skills.
+        Skill directories, keyed by skill name.
+        Each value is a path to an Agent Skills-compliant directory containing
+        SKILL.md. These are merged into programs.opencode.skills.
       '';
     };
 

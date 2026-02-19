@@ -1,5 +1,8 @@
 # Example: A flake that exports agent skills and commands
 #
+# Skills follow the Agent Skills specification (https://agentskills.io/specification).
+# Each skill is a directory containing a SKILL.md file with YAML frontmatter.
+#
 # Other flakes can import this flake's module to gain these skills.
 #
 # Usage by consumers:
@@ -29,51 +32,15 @@
       # Enable agentkit (harnesses are not needed for a library that just exports skills)
       agentkit.enable = true;
 
-      # Define skills that this flake exports
+      # Define skills that this flake exports.
+      # Each skill points to an Agent Skills-compliant directory.
       agentkit.skills = {
         git-release = {
-          description = "Create consistent releases and changelogs";
-          license = "MIT";
-          metadata = {
-            audience = "maintainers";
-            workflow = "github";
-          };
-          content = ''
-            ## What I do
-            - Draft release notes from merged PRs
-            - Propose a version bump based on conventional commits
-            - Provide a copy-pasteable `gh release create` command
-
-            ## When to use me
-            Use this when you are preparing a tagged release.
-            Ask clarifying questions if the target versioning scheme is unclear.
-
-            ## Steps
-            1. Run `git log --oneline $(git describe --tags --abbrev=0)..HEAD`
-            2. Categorize changes into Added, Changed, Fixed, Removed
-            3. Determine version bump (major/minor/patch) from commit prefixes
-            4. Draft the release notes in Keep a Changelog format
-            5. Provide the `gh release create` command
-          '';
+          directory = ./skills/git-release;
         };
 
         nix-module = {
-          description = "Write idiomatic NixOS/home-manager modules";
-          license = "MIT";
-          content = ''
-            ## What I do
-            Help write well-structured Nix modules following community conventions.
-
-            ## Guidelines
-            - Use `mkEnableOption` for feature flags
-            - Use `mkOption` with proper types from `lib.types`
-            - Guard config with `mkIf cfg.enable`
-            - Use `lib.mkDefault` for overridable defaults
-            - Prefer `lib.optional` / `lib.optionals` over if-then-else
-            - Namespace options appropriately (e.g., `services.myApp`, `programs.myTool`)
-            - Add descriptions to all options
-            - Use `literalExpression` for complex examples
-          '';
+          directory = ./skills/nix-module;
         };
       };
 

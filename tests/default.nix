@@ -1,7 +1,7 @@
 # agentkit tests
 #
 # Runs as part of `nix flake check`. Tests verify that:
-# 1. Skills render correctly to SKILL.md format
+# 1. Skill directories are copied as-is (Agent Skills spec compliance)
 # 2. Commands render correctly to command markdown format
 { lib, ... }:
 {
@@ -10,32 +10,18 @@
     let
       ocLib = import ../modules/harnesses/opencode/lib.nix { inherit lib; };
 
-      # Test skill definition
-      testSkill = {
-        name = "test-skill";
-        description = "A test skill for verification";
-        content = ''
-          ## What I do
-          - Test things
-          - Verify correctness
-        '';
-        license = "MIT";
-        compatibility = [ "opencode" ];
-        metadata = {
-          audience = "developers";
-          category = "testing";
-        };
-      };
+      # Test skill fixtures (Agent Skills-compliant directories)
+      testSkillDir = ../tests/fixtures/test-skill;
+      minimalSkillDir = ../tests/fixtures/minimal-skill;
+      extrasSkillDir = ../tests/fixtures/skill-with-extras;
 
-      # Test skill with minimal fields
-      minimalSkill = {
-        name = "minimal";
-        description = "A minimal skill";
-        content = "Just do the thing.";
-        license = null;
-        compatibility = [ ];
-        metadata = { };
-      };
+      # Build a config directory simulating what the harness does
+      testConfigDir = pkgs.runCommand "test-config-dir" { } ''
+        mkdir -p $out/skills
+        cp -rL ${testSkillDir} $out/skills/test-skill
+        cp -rL ${minimalSkillDir} $out/skills/minimal-skill
+        cp -rL ${extrasSkillDir} $out/skills/skill-with-extras
+      '';
 
       # Test command definition
       testCommand = {
@@ -55,44 +41,60 @@
         model = "anthropic/claude-sonnet-4-5";
       };
 
-      # Write rendered content to files to avoid shell interpolation issues
-      skillFile = pkgs.writeText "test-skill.md" (ocLib.renderSkill testSkill);
-      minimalFile = pkgs.writeText "minimal-skill.md" (ocLib.renderSkill minimalSkill);
       commandFile = pkgs.writeText "test-command.md" (ocLib.renderCommand testCommand);
       fullCommandFile = pkgs.writeText "full-command.md" (ocLib.renderCommand fullCommand);
     in
     {
       checks = {
-        # Test that skill rendering produces valid SKILL.md content
-        skill-rendering = pkgs.runCommand "agentkit-test-skill-rendering" { } ''
-          # Verify frontmatter markers
-          head -1 ${skillFile} | grep -q '^---$' || (echo "FAIL: missing opening frontmatter"; exit 1)
-          grep -q 'name: test-skill' ${skillFile} || (echo "FAIL: missing name"; exit 1)
-          grep -q 'description: A test skill for verification' ${skillFile} || (echo "FAIL: missing description"; exit 1)
-          grep -q 'license: MIT' ${skillFile} || (echo "FAIL: missing license"; exit 1)
-          grep -q 'compatibility: opencode' ${skillFile} || (echo "FAIL: missing compatibility"; exit 1)
-          grep -q 'metadata:' ${skillFile} || (echo "FAIL: missing metadata header"; exit 1)
-          grep -q 'audience: developers' ${skillFile} || (echo "FAIL: missing metadata entry"; exit 1)
+        # Test that skill directories are copied with SKILL.md intact
+        skill-directory-copy = pkgs.runCommand "agentkit-test-skill-directory" { } ''
+          # Verify SKILL.md exists in copied directory
+          test -f ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing SKILL.md"; exit 1)
 
-          # Verify content is present
-          grep -q '## What I do' ${skillFile} || (echo "FAIL: missing content header"; exit 1)
-          grep -q 'Test things' ${skillFile} || (echo "FAIL: missing content body"; exit 1)
+          # Verify frontmatter is preserved as-is (not regenerated)
+          grep -q 'name: test-skill' ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing name in frontmatter"; exit 1)
+          grep -q 'description: A test skill for verification' ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing description"; exit 1)
+          grep -q 'license: MIT' ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing license"; exit 1)
+          grep -q 'audience: developers' ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing metadata"; exit 1)
 
-          echo "PASS: skill rendering"
+          # Verify body content is preserved
+          grep -q '## What I do' ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing content header"; exit 1)
+          grep -q 'Test things' ${testConfigDir}/skills/test-skill/SKILL.md || (echo "FAIL: missing content body"; exit 1)
+
+          echo "PASS: skill directory copy"
           mkdir -p $out && touch $out/passed
         '';
 
-        # Test minimal skill rendering (no optional fields)
-        minimal-skill-rendering = pkgs.runCommand "agentkit-test-minimal-skill" { } ''
-          grep -q 'name: minimal' ${minimalFile} || (echo "FAIL: missing name"; exit 1)
-          grep -q 'description: A minimal skill' ${minimalFile} || (echo "FAIL: missing description"; exit 1)
+        # Test minimal skill directory
+        minimal-skill-directory = pkgs.runCommand "agentkit-test-minimal-skill" { } ''
+          test -f ${testConfigDir}/skills/minimal-skill/SKILL.md || (echo "FAIL: missing SKILL.md"; exit 1)
+          grep -q 'name: minimal-skill' ${testConfigDir}/skills/minimal-skill/SKILL.md || (echo "FAIL: missing name"; exit 1)
+          grep -q 'description: A minimal skill' ${testConfigDir}/skills/minimal-skill/SKILL.md || (echo "FAIL: missing description"; exit 1)
 
-          # Should NOT contain optional fields
-          ! grep -q 'license:' ${minimalFile} || (echo "FAIL: should not have license"; exit 1)
-          ! grep -q 'compatibility:' ${minimalFile} || (echo "FAIL: should not have compatibility"; exit 1)
-          ! grep -q 'metadata:' ${minimalFile} || (echo "FAIL: should not have metadata"; exit 1)
+          # Verify body content
+          grep -q 'Just do the thing.' ${testConfigDir}/skills/minimal-skill/SKILL.md || (echo "FAIL: missing body"; exit 1)
 
-          echo "PASS: minimal skill rendering"
+          echo "PASS: minimal skill directory"
+          mkdir -p $out && touch $out/passed
+        '';
+
+        # Test skill with extra directories (scripts/, references/)
+        skill-with-extras = pkgs.runCommand "agentkit-test-skill-extras" { } ''
+          test -f ${testConfigDir}/skills/skill-with-extras/SKILL.md || (echo "FAIL: missing SKILL.md"; exit 1)
+          test -f ${testConfigDir}/skills/skill-with-extras/scripts/process.sh || (echo "FAIL: missing script"; exit 1)
+          test -f ${testConfigDir}/skills/skill-with-extras/references/REFERENCE.md || (echo "FAIL: missing reference"; exit 1)
+
+          # Verify SKILL.md content
+          grep -q 'name: skill-with-extras' ${testConfigDir}/skills/skill-with-extras/SKILL.md || (echo "FAIL: missing name"; exit 1)
+          grep -q 'license: Apache-2.0' ${testConfigDir}/skills/skill-with-extras/SKILL.md || (echo "FAIL: missing license"; exit 1)
+
+          # Verify script content is preserved
+          grep -q 'Processing data' ${testConfigDir}/skills/skill-with-extras/scripts/process.sh || (echo "FAIL: script content wrong"; exit 1)
+
+          # Verify reference content is preserved
+          grep -q 'Reference Guide' ${testConfigDir}/skills/skill-with-extras/references/REFERENCE.md || (echo "FAIL: reference content wrong"; exit 1)
+
+          echo "PASS: skill with extras"
           mkdir -p $out && touch $out/passed
         '';
 
