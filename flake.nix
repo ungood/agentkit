@@ -39,10 +39,9 @@
 
       flake = {
         flakeModules.default = flakeModule;
-        flakeModules.tldr = import ./modules/skills/tldr;
         inherit flakeModule;
 
-        homeModules.opencode = import ./modules/runtimes/opencode/home-module.nix;
+        homeModules.default = import ./modules/runtimes/opencode/home-module.nix;
       };
     };
 }

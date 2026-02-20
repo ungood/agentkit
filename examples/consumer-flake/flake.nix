@@ -35,36 +35,28 @@
         # (skills merge automatically via the module system)
       ];
 
-      # Enable agentkit and the OpenCode runtime
-      agentkit = {
-        enable = true;
-        runtimes.opencode.enable = true;
-      };
-
-      # You can also define project-local skills (pointing to local directories)
-      agentkit.skills.project-conventions = {
-        directory = ./skills/project-conventions;
-      };
-
-      agentkit.commands.test = {
-        description = "Run the project test suite";
-        template = ''
-          Run the full test suite for this project.
-          If specific tests are mentioned, focus on those.
-          Show failures clearly and suggest fixes.
-          $ARGUMENTS
-        '';
-      };
-
-      # Enable devshell integration (aggregated across all agent runtimes)
       perSystem =
         { config, pkgs, ... }:
         {
-          # Enable devshell for individual runtimes...
-          agentkit.runtimes.opencode.devshell.enable = true;
+          agentkit = {
+            enable = true;
+            runtimes.opencode.enable = true;
 
-          # ...then use the aggregated shell that merges all runtime hooks
-          agentkit.devshell.enable = true;
+            # Define project-local skills (pointing to local directories)
+            skills.project-conventions = {
+              path = ./skills/project-conventions;
+            };
+
+            commands.test = {
+              description = "Run the project test suite";
+              template = ''
+                Run the full test suite for this project.
+                If specific tests are mentioned, focus on those.
+                Show failures clearly and suggest fixes.
+                $ARGUMENTS
+              '';
+            };
+          };
 
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [

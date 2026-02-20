@@ -14,14 +14,14 @@ each module provides an `enable` option, optional configuration (like
 home-manager                            agentkit
 ──────────────                          ────────
 programs.git.enable                →    agentkit.skills.<name>.enable
-programs.git.package               →    perSystem.agentkit.skills.<name>.package
-home.packages += [pkg]             →    perSystem.agentkit.devshell.packages += [pkg]
-xdg.configFile.xxx                 →    agentkit.skills.<name>.directory
+programs.git.package               →    agentkit.skills.<name>.package
+home.packages += [pkg]             →    agentkit.skills.<name>.packages += [pkg]
+xdg.configFile.xxx                 →    agentkit.skills.<name>.path
 ```
 
 When a user imports your module and sets `enable = true`, the module:
-1. Registers the skill directory (flake-level)
-2. Adds tool packages to the devshell (per-system)
+1. Registers the skill directory
+2. Adds tool packages to the skill's `packages` (auto-aggregated into the devshell)
 
 Users don't need to manually define skill directories or add packages --
 the module handles it.
@@ -33,27 +33,27 @@ Here it is in full:
 
 ```nix
 # modules/skills/tldr/default.nix
-{ lib, config, ... }:
-let
-  cfg = config.agentkit.skills.tldr;
-in
+{ lib, ... }:
 {
-  # Opt-in: override the skill type's default (true) to false
-  config.agentkit.skills.tldr.enable = lib.mkDefault false;
+  options.perSystem = lib.mkPerSystemOption ({ lib, config, pkgs, ... }:
+    let
+      cfg = config.agentkit.skills.tldr;
+    in
+    {
+      options.agentkit.skills.tldr = {
+        package = lib.mkPackageOption pkgs "tealdeer" { };
+      };
 
-  # When enabled, set the skill directory
-  config.agentkit.skills.tldr.directory = lib.mkIf cfg.enable ./skill;
+      # Opt-in: override the skill type's default (true) to false
+      config.agentkit.skills.tldr.enable = lib.mkDefault false;
 
-  # Per-system: package option and devshell contribution
-  options.perSystem = lib.mkPerSystemOption ({ lib, config, pkgs, ... }: {
-    options.agentkit.skills.tldr = {
-      package = lib.mkPackageOption pkgs "tealdeer" { };
-    };
-
-    config.agentkit.devshell.packages = lib.mkIf cfg.enable [
-      config.agentkit.skills.tldr.package
-    ];
-  });
+      # When enabled, set the skill path and packages
+      config.agentkit.skills.tldr.path = lib.mkIf cfg.enable ./skill;
+      config.agentkit.skills.tldr.packages = lib.mkIf cfg.enable [
+        cfg.package
+      ];
+    }
+  );
 }
 ```
 
@@ -62,10 +62,13 @@ Key points:
 - **`enable` lives in the skill submodule** -- `agentkit.skills` is an
   `attrsOf skill`, and every skill has an `enable` option (defaults `true`
   for manual skills). Modules set `mkDefault false` to make themselves opt-in.
-- **`package` is per-system** because it needs `pkgs` for the current platform.
-- **`agentkit.devshell.packages`** is how modules contribute packages to the
-  devshell (analogous to `home.packages` in home-manager).
-- **`directory`** is set conditionally with `mkIf` when the skill is enabled.
+- **`package` is a configurable option** for overriding the default tool.
+- **`packages` on the skill** declares the tool dependencies. These are
+  automatically aggregated into the devshell (analogous to `home.packages`
+  in home-manager).
+- **`path`** is set conditionally with `mkIf` when the skill is enabled.
+- **Everything is in `perSystem`** so `pkgs` is available for package
+  declarations.
 
 The corresponding skill directory:
 
@@ -76,18 +79,24 @@ modules/skills/tldr/
     └── SKILL.md          # Agent Skills spec file
 ```
 
-Users enable it like this:
+Users enable it like this (tldr is bundled with agentkit, so no extra import
+is needed):
 
 ```nix
 imports = [
   inputs.agentkit.flakeModules.default
-  inputs.agentkit.flakeModules.tldr
 ];
 
-agentkit = {
-  enable = true;
-  runtimes.opencode.enable = true;
-  skills.tldr.enable = true;
+perSystem = { config, pkgs, ... }: {
+  agentkit = {
+    enable = true;
+    runtimes.opencode.enable = true;
+    skills.tldr.enable = true;
+  };
+
+  devShells.default = pkgs.mkShell {
+    inputsFrom = [ config.agentkit.devshell.shell ];
+  };
 };
 ```
 
@@ -155,23 +164,24 @@ A module flake exports a skill with a tool dependency:
 
 ```nix
 # module.nix
-{ lib, config, ... }:
-let
-  cfg = config.agentkit.skills.my-tool;
-in
+{ lib, ... }:
 {
-  config.agentkit.skills.my-tool.enable = lib.mkDefault false;
-  config.agentkit.skills.my-tool.directory = lib.mkIf cfg.enable ./skill;
+  options.perSystem = lib.mkPerSystemOption ({ lib, config, pkgs, ... }:
+    let
+      cfg = config.agentkit.skills.my-tool;
+    in
+    {
+      options.agentkit.skills.my-tool = {
+        package = lib.mkPackageOption pkgs "my-tool" { };
+      };
 
-  options.perSystem = lib.mkPerSystemOption ({ lib, config, pkgs, ... }: {
-    options.agentkit.skills.my-tool = {
-      package = lib.mkPackageOption pkgs "my-tool" { };
-    };
-
-    config.agentkit.devshell.packages = lib.mkIf cfg.enable [
-      config.agentkit.skills.my-tool.package
-    ];
-  });
+      config.agentkit.skills.my-tool.enable = lib.mkDefault false;
+      config.agentkit.skills.my-tool.path = lib.mkIf cfg.enable ./skill;
+      config.agentkit.skills.my-tool.packages = lib.mkIf cfg.enable [
+        cfg.package
+      ];
+    }
+  );
 }
 ```
 
@@ -233,7 +243,7 @@ option:
 
 ```nix
 agentkit.skills.opencode-only = {
-  directory = ./skills/opencode-only;
+  path = ./skills/opencode-only;
   compatibility = [ "opencode" ];  # only deployed to OpenCode
 };
 ```
@@ -258,15 +268,12 @@ Consumers import your module and enable it:
         inputs.my-skill.flakeModules.default
       ];
 
-      agentkit = {
-        enable = true;
-        runtimes.opencode.enable = true;
-        skills.my-tool.enable = true;
-      };
-
       perSystem = { config, pkgs, ... }: {
-        agentkit.runtimes.opencode.devshell.enable = true;
-        agentkit.devshell.enable = true;
+        agentkit = {
+          enable = true;
+          runtimes.opencode.enable = true;
+          skills.my-tool.enable = true;
+        };
 
         # Override the package if needed
         # agentkit.skills.my-tool.package = pkgs.my-tool-fork;
@@ -281,13 +288,17 @@ Consumers import your module and enable it:
 
 ## Options reference
 
+All agentkit options are per-system (inside `perSystem`) so that `pkgs` is
+available for package declarations.
+
 ### Core options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `agentkit.enable` | `bool` | `false` | Enable agentkit |
 | `agentkit.skills.<name>.enable` | `bool` | `true` | Whether this skill is active (modules override to `false`) |
-| `agentkit.skills.<name>.directory` | `path?` | `null` | Path to Agent Skills-compliant directory |
+| `agentkit.skills.<name>.path` | `path?` | `null` | Path to Agent Skills-compliant directory |
+| `agentkit.skills.<name>.packages` | `[package]` | `[]` | Tool dependencies (auto-added to devshell) |
 | `agentkit.skills.<name>.compatibility` | `[str]` | `[]` | Restrict to specific runtimes (empty = all) |
 
 ### Runtime options
@@ -305,13 +316,11 @@ Consumers import your module and enable it:
 | `agentkit.commands.<name>.agent` | `str?` | `null` | Optional agent to use |
 | `agentkit.commands.<name>.model` | `str?` | `null` | Optional model override |
 
-### Devshell options (per-system)
+### Devshell options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `agentkit.runtimes.opencode.devshell.enable` | `bool` | `false` | Enable OpenCode devshell integration |
-| `agentkit.devshell.enable` | `bool` | `false` | Enable aggregated devshell (all runtimes) |
-| `agentkit.devshell.packages` | `[package]` | `[]` | Packages contributed by skill modules |
+| `agentkit.devshell.packages` | `[package]` | `[]` | Extra packages (skill packages added automatically) |
 | `agentkit.devshell.shell` | `package` | -- | Aggregated shell; use with `inputsFrom` |
 
 ## Testing your module

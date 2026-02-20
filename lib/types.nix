@@ -49,7 +49,7 @@ in
           '';
         };
 
-        directory = mkOption {
+        path = mkOption {
           type = types.nullOr types.path;
           default = null;
           description = ''
@@ -61,6 +61,21 @@ in
 
             Skill modules set this automatically when enabled. Set it manually
             for inline skill definitions.
+          '';
+        };
+
+        packages = mkOption {
+          type = types.listOf types.package;
+          default = [ ];
+          description = ''
+            Packages (tool dependencies) this skill requires. These are
+            automatically added to the devshell when the skill is enabled.
+
+            For example, a skill that teaches agents to use `jq` would set
+            `packages = [ pkgs.jq ]` so the tool is available in the shell.
+
+            Skill modules typically set this via their configurable `package`
+            option. Inline skills set it directly.
           '';
         };
 

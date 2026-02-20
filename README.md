@@ -35,17 +35,23 @@ runtimes are configured automatically.
         inputs.agentkit.flakeModules.default
       ];
 
-      agentkit = {
-        enable = true;
-        runtimes.opencode.enable = true;
+      perSystem = { config, pkgs, ... }: {
+        agentkit = {
+          enable = true;
+          runtimes.opencode.enable = true;
 
-        # Enable a skill built-in to agentkit
-        skills.tldr.enable = true;
+          # Enable a built-in skill
+          skills.tldr.enable = true;
 
-        # Enable a skill inline with the flake
-        skills.lolcat = {
-          packages = [ pkgs.lolcat ];
-          path = ./skills/lolcat;
+          # Define an inline skill with its package dependency
+          skills.lolcat = {
+            path = ./skills/lolcat;
+            packages = [ pkgs.lolcat ];
+          };
+        };
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ config.agentkit.devshell.shell ];
         };
       };
     };
@@ -58,7 +64,7 @@ Install skills at the user level. Every project you work in has the skills avail
 
 ```nix
 # In your home-manager configuration
-{ inputs, ... }:
+{ inputs, pkgs, ... }:
 {
   imports = [
     inputs.agentkit.homeModules.default
@@ -67,13 +73,15 @@ Install skills at the user level. Every project you work in has the skills avail
   agentkit = {
     runtimes.opencode.enable = true;
 
-    # Enable a skill built-in to agentkit
-    skills.tldr.enable = true;
+    skills = {
+      # Enable a built-in skill
+      tldr.enable = true;
 
-    # Enable a skill inline with the flake
-    skills.lolcat = {
-      packages = [ pkgs.lolcat ];
-      path = ./skills/lolcat;
+      # Define an inline skill with its package dependency
+      lolcat = {
+        path = ./skills/lolcat;
+        packages = [ pkgs.lolcat ];
+      };
     };
   };
 }
@@ -89,13 +97,19 @@ imports = [
   inputs.my-team-skills.flakeModules.default
 ];
 
-agentkit = {
-  enable = true;
-  runtimes.opencode.enable = true;
-  skills = {
-    tldr.enable = true;
-    my-team-skill.enable = true;
-  }
+perSystem = { config, pkgs, ... }: {
+  agentkit = {
+    enable = true;
+    runtimes.opencode.enable = true;
+    skills = {
+      tldr.enable = true;
+      my-team-skill.enable = true;
+    };
+  };
+
+  devShells.default = pkgs.mkShell {
+    inputsFrom = [ config.agentkit.devshell.shell ];
+  };
 };
 ```
 

@@ -29,34 +29,38 @@
       # In a real flake: imports = [ inputs.agentkit.flakeModules.default ];
       imports = [ ../../modules/flake-module.nix ];
 
-      # Enable agentkit (runtimes are not needed for a library that just exports skills)
-      agentkit.enable = true;
+      # Define skills and commands in perSystem
+      perSystem = _: {
+        agentkit = {
+          enable = true;
 
-      # Define skills that this flake exports.
-      # Each skill points to an Agent Skills-compliant directory.
-      agentkit.skills = {
-        git-release = {
-          directory = ./skills/git-release;
-        };
+          # Define skills that this flake exports.
+          # Each skill points to an Agent Skills-compliant directory.
+          skills = {
+            git-release = {
+              path = ./skills/git-release;
+            };
 
-        nix-module = {
-          directory = ./skills/nix-module;
-        };
-      };
+            nix-module = {
+              path = ./skills/nix-module;
+            };
+          };
 
-      agentkit.commands = {
-        release = {
-          description = "Prepare a release for this project";
-          template = ''
-            Prepare a release for this project. Check the git log since the last
-            tag, categorize changes, and draft release notes.
+          commands = {
+            release = {
+              description = "Prepare a release for this project";
+              template = ''
+                Prepare a release for this project. Check the git log since the last
+                tag, categorize changes, and draft release notes.
 
-            If a version is specified, use it. Otherwise, determine the appropriate
-            version bump from conventional commit prefixes.
+                If a version is specified, use it. Otherwise, determine the appropriate
+                version bump from conventional commit prefixes.
 
-            $ARGUMENTS
-          '';
-          agent = "build";
+                $ARGUMENTS
+              '';
+              agent = "build";
+            };
+          };
         };
       };
     };
