@@ -1,8 +1,8 @@
 # agentkit type definitions
 #
 # Framework-agnostic types for agent platform extension points.
-# These are consumed by backend modules (opencode, etc.) to generate
-# framework-specific configuration.
+# These are consumed by agent runtime modules (opencode, etc.) to generate
+# runtime-specific configuration.
 #
 # Skills follow the Agent Skills specification (https://agentskills.io/specification).
 # Each skill is a directory containing at minimum a SKILL.md file with YAML
@@ -19,12 +19,25 @@ in
   # (name, description, etc.) and may optionally include scripts/, references/,
   # and assets/ subdirectories. See https://agentskills.io/specification.
   #
-  # Agentkit simply copies the directory into the framework's expected location.
-  # It does not parse or regenerate the SKILL.md frontmatter.
+  # Agentkit simply copies the directory into the agent runtime's expected
+  # location. It does not parse or regenerate the SKILL.md frontmatter.
+  #
+  # Skill modules (like tldr) set `enable = mkDefault false` so they are
+  # opt-in. Manually defined skills default to enabled.
   skill = types.submodule (
     { name, ... }:
     {
       options = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Whether this skill is enabled. Defaults to true for manually
+            defined skills. Skill modules override this to false so they
+            are opt-in.
+          '';
+        };
+
         name = mkOption {
           type = types.str;
           default = name;
@@ -37,13 +50,17 @@ in
         };
 
         directory = mkOption {
-          type = types.path;
+          type = types.nullOr types.path;
+          default = null;
           description = ''
             Path to the skill directory. Must contain a SKILL.md file conforming
             to the Agent Skills specification (https://agentskills.io/specification).
 
             The directory may also include optional subdirectories such as
             scripts/, references/, and assets/.
+
+            Skill modules set this automatically when enabled. Set it manually
+            for inline skill definitions.
           '';
         };
 
@@ -51,10 +68,10 @@ in
           type = types.listOf types.str;
           default = [ ];
           description = ''
-            List of frameworks this skill is compatible with (e.g., ["opencode"]).
-            Empty means compatible with all frameworks.
+            List of agent runtimes this skill is compatible with (e.g., ["opencode"]).
+            Empty means compatible with all runtimes.
 
-            This is an agentkit-specific field for filtering skills by harness —
+            This is an agentkit-specific field for filtering skills by runtime —
             it is not part of the Agent Skills specification.
           '';
           example = [

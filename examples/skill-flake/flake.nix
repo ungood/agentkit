@@ -29,7 +29,7 @@
       # In a real flake: imports = [ inputs.agentkit.flakeModules.default ];
       imports = [ ../../modules/flake-module.nix ];
 
-      # Enable agentkit (harnesses are not needed for a library that just exports skills)
+      # Enable agentkit (runtimes are not needed for a library that just exports skills)
       agentkit.enable = true;
 
       # Define skills that this flake exports.

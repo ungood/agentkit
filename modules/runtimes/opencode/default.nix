@@ -1,17 +1,17 @@
-# agentkit OpenCode harness
+# agentkit OpenCode runtime adapter
 #
 # Converts framework-agnostic agentkit definitions into OpenCode-specific
-# configuration. Registers itself into the agentkit harness system so the
+# configuration. Registers itself into the agentkit runtime system so the
 # devshell aggregator can include its env vars.
 #
 # Skills follow the Agent Skills specification and are copied as directories.
 # Commands are rendered to markdown with frontmatter.
 #
 # Provides:
-#   - agentkit.opencode.enable              (top-level toggle)
-#   - agentkit.opencode.skillDirs           (skill directory paths)
-#   - agentkit.opencode.generatedCommands   (rendered command.md content)
-#   - perSystem.agentkit.opencode.devshell  (devshell integration)
+#   - agentkit.runtimes.opencode.enable              (top-level toggle)
+#   - agentkit.runtimes.opencode.skillDirs           (skill directory paths)
+#   - agentkit.runtimes.opencode.generatedCommands   (rendered command.md content)
+#   - perSystem.agentkit.runtimes.opencode.devshell  (devshell integration)
 {
   lib,
   config,
@@ -28,12 +28,15 @@ let
     ;
 
   cfg = config.agentkit;
-  ocCfg = cfg.opencode;
+  ocCfg = cfg.runtimes.opencode;
   ocLib = import ./lib.nix { inherit lib; };
 
-  # Filter skills to those compatible with opencode (or unrestricted)
+  # Filter skills: must be enabled, have a directory, and be compatible with opencode
   compatibleSkills = filterAttrs (
-    _: skill: skill.compatibility == [ ] || builtins.elem "opencode" skill.compatibility
+    _: skill:
+    skill.enable
+    && skill.directory != null
+    && (skill.compatibility == [ ] || builtins.elem "opencode" skill.compatibility)
   ) cfg.skills;
 
   # Resolve skill directories (paths to Agent Skills-compliant directories)
@@ -42,8 +45,8 @@ let
   generatedCommands = mapAttrs (_: ocLib.renderCommand) cfg.commands;
 in
 {
-  options.agentkit.opencode = {
-    enable = mkEnableOption "OpenCode harness";
+  options.agentkit.runtimes.opencode = {
+    enable = mkEnableOption "OpenCode agent runtime";
 
     skillDirs = mkOption {
       type = types.attrsOf types.path;
@@ -66,12 +69,12 @@ in
   };
 
   config = mkIf (cfg.enable && ocCfg.enable) {
-    agentkit.opencode = {
+    agentkit.runtimes.opencode = {
       inherit skillDirs generatedCommands;
     };
   };
 
-  # perSystem: devshell integration + harness registration
+  # perSystem: devshell integration + runtime registration
   options.perSystem = lib.mkPerSystemOption (
     {
       lib,
@@ -80,7 +83,7 @@ in
       ...
     }:
     let
-      psCfg = config.agentkit.opencode.devshell;
+      psCfg = config.agentkit.runtimes.opencode.devshell;
 
       commandFiles = mapAttrs (
         name: content: pkgs.writeText "${name}-command.md" content
@@ -112,7 +115,7 @@ in
       '';
     in
     {
-      options.agentkit.opencode.devshell = {
+      options.agentkit.runtimes.opencode.devshell = {
         enable = mkEnableOption "OpenCode devshell integration via OPENCODE_CONFIG_DIR";
 
         configDir = mkOption {
@@ -145,8 +148,8 @@ in
         };
       };
 
-      # Register into the per-system harness devshell aggregator
-      config.agentkit._harnessDevshells.opencode = mkIf (cfg.enable && ocCfg.enable) {
+      # Register into the per-system runtime devshell aggregator
+      config.agentkit._runtimeDevshells.opencode = mkIf (cfg.enable && ocCfg.enable) {
         inherit (psCfg) enable;
         inherit (psCfg) shellHook configDir;
       };

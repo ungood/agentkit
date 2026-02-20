@@ -1,8 +1,8 @@
 # agentkit flake-parts module
 #
 # Framework-agnostic core. Defines shared options for skills, commands, and
-# a harness registry. Individual harnesses (opencode, claude-code, etc.) are
-# separate modules that consume these definitions and register themselves.
+# a runtime registry. Individual agent runtimes (opencode, claude-code, etc.)
+# are separate modules that consume these definitions and register themselves.
 #
 # Skills follow the Agent Skills specification (https://agentskills.io/specification).
 # Each skill is a directory containing a SKILL.md file with YAML frontmatter.
@@ -12,15 +12,12 @@
 #
 #   agentkit = {
 #     enable = true;
-#     opencode.enable = true;
-#
-#     skills.git-release = {
-#       directory = ./skills/git-release;
-#     };
+#     runtimes.opencode.enable = true;
+#     skills.tldr.enable = true;
 #   };
 #
 #   perSystem = { config, ... }: {
-#     agentkit.devshell.enable = true;  # aggregates all enabled harnesses
+#     agentkit.devshell.enable = true;
 #     devShells.default = pkgs.mkShell {
 #       inputsFrom = [ config.agentkit.devshell.shell ];
 #     };
@@ -40,7 +37,7 @@ let
 in
 {
   imports = [
-    ./harnesses/opencode
+    ./runtimes/opencode
   ];
 
   options.agentkit = {
@@ -50,19 +47,20 @@ in
       type = types.attrsOf agentkitTypes.skill;
       default = { };
       description = ''
-        Agent skills to export from this flake.
+        Agent skills registry.
 
         Skills follow the Agent Skills specification. Each skill is a directory
         containing a SKILL.md file with YAML frontmatter. Agentkit copies these
-        directories as-is into the framework's expected location — it does not
-        parse or regenerate the frontmatter.
+        directories as-is into the agent runtime's expected location — it does
+        not parse or regenerate the frontmatter.
 
-        Each enabled harness (opencode, claude-code, etc.) copies the skill
-        directories into the framework's expected configuration path.
+        Skill modules (like tldr) define their options here and set the
+        directory automatically when enabled. You can also define skills
+        manually by setting `directory` directly.
       '';
       example = {
-        git-release = {
-          directory = ./skills/git-release;
+        my-skill = {
+          directory = ./skills/my-skill;
         };
       };
     };
@@ -73,8 +71,8 @@ in
       description = ''
         Agent commands to export from this flake.
 
-        Commands are reusable slash command templates. Each enabled harness
-        converts them into the framework's expected format.
+        Commands are reusable slash command templates. Each enabled agent
+        runtime converts them into its expected format.
       '';
       example = {
         release = {
@@ -85,7 +83,7 @@ in
     };
   };
 
-  # Aggregate devshell from all enabled harnesses
+  # Aggregate devshell from all enabled agent runtimes
   options.perSystem = lib.mkPerSystemOption (
     {
       lib,
@@ -96,41 +94,51 @@ in
     let
       devCfg = config.agentkit.devshell;
 
-      # Collect shell hooks from all registered per-system harness devshells
-      enabledHarnesses = lib.filterAttrs (_: h: h.enable) config.agentkit._harnessDevshells;
+      # Collect shell hooks from all registered per-system runtime devshells
+      enabledRuntimes = lib.filterAttrs (_: r: r.enable) config.agentkit._runtimeDevshells;
 
       aggregatedShellHook = lib.concatStringsSep "\n" (
-        lib.mapAttrsToList (_: h: h.shellHook) enabledHarnesses
+        lib.mapAttrsToList (_: r: r.shellHook) enabledRuntimes
       );
     in
     {
       options.agentkit = {
         devshell = {
-          enable = mkEnableOption "agentkit devshell integration (aggregates all enabled harnesses)";
+          enable = mkEnableOption "agentkit devshell integration (aggregates all enabled agent runtimes)";
+
+          packages = mkOption {
+            type = types.listOf types.package;
+            default = [ ];
+            description = ''
+              Packages to include in the aggregated devshell. Skill modules
+              contribute their tool packages here (similar to home.packages
+              in home-manager).
+            '';
+          };
 
           shellHook = mkOption {
             type = types.str;
             readOnly = true;
             default = aggregatedShellHook;
-            description = "Combined shell hook from all enabled harnesses.";
+            description = "Combined shell hook from all enabled agent runtimes.";
           };
 
           shell = mkOption {
             type = types.package;
             readOnly = true;
             default = pkgs.mkShell {
-              inherit (devCfg) shellHook;
+              inherit (devCfg) shellHook packages;
             };
             description = ''
-              A minimal shell with all enabled harness env vars set.
-              Use with `inputsFrom` in your devShell definition.
+              A minimal shell with all enabled agent runtime env vars and skill
+              packages. Use with `inputsFrom` in your devShell definition.
             '';
           };
         };
 
-        # Internal: per-system harness devshell registry.
-        # Each harness module registers itself here.
-        _harnessDevshells = mkOption {
+        # Internal: per-system runtime devshell registry.
+        # Each agent runtime module registers itself here.
+        _runtimeDevshells = mkOption {
           type = types.attrsOf (
             types.submodule {
               options = {
@@ -151,7 +159,7 @@ in
           );
           internal = true;
           default = { };
-          description = "Per-system harness devshell configurations.";
+          description = "Per-system agent runtime devshell configurations.";
         };
       };
     }

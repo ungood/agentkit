@@ -35,10 +35,10 @@
         # (skills merge automatically via the module system)
       ];
 
-      # Enable agentkit and the OpenCode harness
+      # Enable agentkit and the OpenCode runtime
       agentkit = {
         enable = true;
-        opencode.enable = true;
+        runtimes.opencode.enable = true;
       };
 
       # You can also define project-local skills (pointing to local directories)
@@ -56,14 +56,14 @@
         '';
       };
 
-      # Enable devshell integration (aggregated across all harnesses)
+      # Enable devshell integration (aggregated across all agent runtimes)
       perSystem =
         { config, pkgs, ... }:
         {
-          # Enable devshell for individual harnesses...
-          agentkit.opencode.devshell.enable = true;
+          # Enable devshell for individual runtimes...
+          agentkit.runtimes.opencode.devshell.enable = true;
 
-          # ...then use the aggregated shell that merges all harness hooks
+          # ...then use the aggregated shell that merges all runtime hooks
           agentkit.devshell.enable = true;
 
           devShells.default = pkgs.mkShell {
@@ -71,7 +71,7 @@
               opencode
             ];
 
-            # This sets OPENCODE_CONFIG_DIR (and any other harness env vars)
+            # This sets OPENCODE_CONFIG_DIR (and any other runtime env vars)
             inputsFrom = [ config.agentkit.devshell.shell ];
           };
         };

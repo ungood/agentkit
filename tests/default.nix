@@ -8,14 +8,14 @@
   perSystem =
     { pkgs, ... }:
     let
-      ocLib = import ../modules/harnesses/opencode/lib.nix { inherit lib; };
+      ocLib = import ../modules/runtimes/opencode/lib.nix { inherit lib; };
 
       # Test skill fixtures (Agent Skills-compliant directories)
       testSkillDir = ../tests/fixtures/test-skill;
       minimalSkillDir = ../tests/fixtures/minimal-skill;
       extrasSkillDir = ../tests/fixtures/skill-with-extras;
 
-      # Build a config directory simulating what the harness does
+      # Build a config directory simulating what the runtime adapter does
       testConfigDir = pkgs.runCommand "test-config-dir" { } ''
         mkdir -p $out/skills
         cp -rL ${testSkillDir} $out/skills/test-skill
